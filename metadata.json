@@ -1,0 +1,7 @@
+{
+  "name": "AnnotateAI",
+  "description": "Professional AI-powered image annotation tool with automatic object detection, manual labeling tools (bounding boxes, polygons), and multi-format export (COCO, JSON).",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

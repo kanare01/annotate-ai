@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Fields: uid, email, displayName, role, createdAt
+    //
+    // Collection: projects
+    // Fields: name, description, ownerId, createdAt
+    //
+    // Collection: images (sub of projects)
+    // Fields: name, url, status, projectId, uploadedBy, createdAt
+    //
+    // Collection: annotations (sub of images)
+    // Fields: type, label, points, metadata, createdBy, updatedAt
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'admin' || 
+        (request.auth.token.email == "kwash904@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+    
+    function isAnnotator() {
+      return isAuthenticated() && getUserData().role == 'annotator';
+    }
+    
+    function isReviewer() {
+      return isAuthenticated() && getUserData().role == 'reviewer';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && request.resource.data.role == 'annotator'; // Default to annotator
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      allow delete: if isAdmin();
+
+      // Images
+      match /images/{imageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAdmin() || (isAuthenticated() && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid);
+
+        // Annotations
+        match /annotations/{annotationId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+      }
+    }
+  }
+}
